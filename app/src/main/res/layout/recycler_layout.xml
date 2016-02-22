@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="horizontal"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:layout_gravity="center_vertical"
+        android:padding="8dp"
+        android:id="@+id/drawer_list_image"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:src="@mipmap/ic_launcher"
+        android:layout_above="@+id/recycler_list_text_brand_model"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentEnd="true" />
+
+    <TextView
+        android:layout_gravity="center_vertical"
+        android:padding="8dp"
+        android:id="@+id/recycler_list_text_brand_model"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="bike_brand + bike_model"
+        android:layout_centerVertical="true"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true" />
+
+    <TextView
+        android:padding="8dp"
+        android:layout_marginLeft="8dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="bike_year"
+        android:id="@+id/recycler_list_text_year"
+        android:layout_below="@+id/recycler_list_text_brand_model"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true" />
+
+</RelativeLayout>

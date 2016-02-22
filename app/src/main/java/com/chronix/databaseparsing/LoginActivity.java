@@ -6,6 +6,7 @@ import android.content.ContentValues;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.sqlite.SQLiteDatabase;
+import android.os.AsyncTask;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -20,7 +21,6 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-import android.widget.Toast;
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -44,6 +44,13 @@ public class LoginActivity extends AppCompatActivity {
     private static final String DATABASE_NAME = "userDB";
     private SharedPreferences settings;
     //private SharedPreferences.Editor editor;
+
+    private String authenticationLinkDB = "http://192.168.1.4/connection.php?id=";
+    private String registerUserLinkDB = "http://192.168.1.4/register.php?";
+    private String idDB = "id=";
+    private String nameDB = "name=";
+    private String emailDB = "email=";
+    private String passwordDB = "password=";
 
     SQLiteDatabase userDatabase;
 
@@ -77,7 +84,7 @@ public class LoginActivity extends AppCompatActivity {
                         attemptRegisterUser();
                     } catch (Exception e) {
                         e.printStackTrace();
-                        Snackbar.make(v, "Unable to register your account, internal app error.", Snackbar.LENGTH_LONG).show();
+                        Snackbar.make(v.getRootView(), "Unable to register your account, internal app error. " + e.getMessage(), Snackbar.LENGTH_LONG).show();
                     }
                 } else {
 
@@ -129,13 +136,32 @@ public class LoginActivity extends AppCompatActivity {
             // send user data over to the server a copy in local db.
             temp = encrypt(email);
             id = temp.toString();
-            Toast.makeText(this, id, Toast.LENGTH_LONG).show();
-            ContentValues contentValues = new ContentValues();
-            contentValues.put("name", name);
-            contentValues.put("email", email);
-            contentValues.put("password", password);
-            contentValues.put("id", id);
-            userDatabase.insert("local_user_table", null, contentValues);
+//            ContentValues contentValues = new ContentValues();
+//            contentValues.put("name", name);
+//            contentValues.put("email", email);
+//            contentValues.put("password", password);
+//            contentValues.put("id", id);
+//            userDatabase.insert("local_user_table", null, contentValues);
+
+            idDB = idDB.concat(id);
+            nameDB = nameDB.concat(name);
+            emailDB = emailDB.concat(email);
+            passwordDB = passwordDB.concat(password);
+
+            registerUserLinkDB = registerUserLinkDB.concat(idDB);
+            registerUserLinkDB = registerUserLinkDB.concat("&");
+            registerUserLinkDB = registerUserLinkDB.concat(nameDB);
+            registerUserLinkDB = registerUserLinkDB.concat("&");
+            registerUserLinkDB = registerUserLinkDB.concat(emailDB);
+            registerUserLinkDB = registerUserLinkDB.concat("&");
+            registerUserLinkDB = registerUserLinkDB.concat(passwordDB);
+
+//            URL url = new URL(registerUserLinkDB)-;
+//            HttpClient client = new DefaultHttpClient();
+//            HttpGet request = new HttpGet();
+//            request.setURI(new URI(registerUserLinkDB));
+//            HttpResponse response = client.execute(request);
+
             settings = getSharedPreferences(SETTINGS_NAME, MODE_PRIVATE);
             settings.edit().putBoolean("isLoggedIn", true).apply();
             settings.edit().putString("ID", id).apply();
@@ -143,7 +169,7 @@ public class LoginActivity extends AppCompatActivity {
         }
     }
 
-    private boolean isEmailValid(String email) {
+    private boolean isEmailValid(String email) {        // check on server
         return email.contains("@");
     }
 
@@ -158,7 +184,6 @@ public class LoginActivity extends AppCompatActivity {
                 the app sends the user id for system prefs to the server and receives an authentication.
                 if the server does not have the id in its database then the app resets current account info
                 and asks the user for new login
-
             */
 
         if (!show) {        // for login and registrations
@@ -196,6 +221,11 @@ public class LoginActivity extends AppCompatActivity {
                 }
             });
         } else {        // for registered users, increase the slash time.
+            mEmailLayout.setVisibility(View.GONE);
+            mPasswordLayout.setVisibility(View.GONE);
+            mNameLayout.setVisibility(View.GONE);
+            mLoginButton.setVisibility(View.GONE);
+            mTextView.setVisibility(View.GONE);
             linearLayout.setVisibility(show ? View.VISIBLE : View.GONE);
             final Animation imageViewAnim = AnimationUtils.loadAnimation(this, R.anim.image_view_anim);
             mImageView.startAnimation(imageViewAnim);
@@ -208,9 +238,17 @@ public class LoginActivity extends AppCompatActivity {
                 @Override
                 public void onAnimationEnd(Animation animation) {
                     linearLayout.setVisibility(show ? View.GONE : View.VISIBLE);
-                    Intent mainIntent = new Intent(LoginActivity.this, MainActivity.class);
-                    LoginActivity.this.startActivity(mainIntent);
-                    finish();
+                    settings = getSharedPreferences(SETTINGS_NAME, MODE_PRIVATE);
+                    String id = settings.getString("ID", null);
+                    if (id == null)
+                        showProgressCircle(false);
+                    else {
+
+                        Intent mainIntent = new Intent(LoginActivity.this, MainActivity.class);
+                        mainIntent.putExtra("link", registerUserLinkDB);
+                        LoginActivity.this.startActivity(mainIntent);
+                        finish();
+                    }
                 }
 
                 @Override
@@ -219,6 +257,15 @@ public class LoginActivity extends AppCompatActivity {
                 }
             });
         }
+    }
+
+    void authenicateUser(String id) {
+        new AsyncTask<String, String, String>() {
+            @Override
+            protected String doInBackground(String... params) {
+                return null;
+            }
+        }.execute();
     }
 
     public static byte[] encrypt(String x) throws Exception {
