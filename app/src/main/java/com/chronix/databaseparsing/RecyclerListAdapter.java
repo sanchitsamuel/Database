@@ -35,6 +35,7 @@ public class RecyclerListAdapter extends RecyclerView.Adapter <RecyclerListAdapt
     public void onBindViewHolder(RecyclerViewHolder holder, int position) {
         holder.mRecyclerListTextView.setText(data.get(position).brandModel);
         holder.mRecyclerListImageView.setImageResource(data.get(position).imageID);
+        // Glide.with().load(data.get(position).imageID).into(holder.mRecyclerListImageView);
         holder.mRecyclerListYearView.setText(data.get(position).year);
     }
 

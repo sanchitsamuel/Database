@@ -7,4 +7,9 @@
         android:orderInCategory="100"
         android:title="@string/action_log_out"
         app:showAsAction="never" />
+    <item
+        android:icon="@drawable/ic_model"
+        android:id="@+id/action_filter"
+        android:title="@string/action_filters"
+        app:showAsAction="always" />
 </menu>

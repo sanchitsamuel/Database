@@ -2,25 +2,33 @@ package com.chronix.databaseparsing;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
-import android.content.ContentValues;
-import android.content.Intent;
 import android.content.SharedPreferences;
-import android.database.sqlite.SQLiteDatabase;
 import android.os.AsyncTask;
-import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
+import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
+
+import com.google.gson.Gson;
+
+import org.json.JSONObject;
+
+import java.io.IOException;
+
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -45,14 +53,21 @@ public class LoginActivity extends AppCompatActivity {
     private SharedPreferences settings;
     //private SharedPreferences.Editor editor;
 
-    private String authenticationLinkDB = "http://192.168.1.4/connection.php?id=";
-    private String registerUserLinkDB = "http://192.168.1.4/register.php?";
-    private String idDB = "id=";
-    private String nameDB = "name=";
-    private String emailDB = "email=";
-    private String passwordDB = "password=";
+    private final String LINK_MAIN = "http://192.168.1.4/";
+    private final String SERVICE_REGISTER = "register.php?";
+    private final String SERVICE_EMAIL_CHECK = "checkemail.php?";
+    private final String SERVICE_LOGIN = "login.php";
 
-    SQLiteDatabase userDatabase;
+    private final String link = "http://192.168.1.4/";
+    //private final String idDB = "id=";
+    private final String REGISTER_NAME = "name=";
+    private final String REGISTER_EMAIL = "email=";
+    private final String REGISTER_PASSWORD = "password=";
+
+    private Database database;
+    ResponseClass responseClass;
+
+    private UserRegisterTask mUserRegisterTask = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -72,108 +87,88 @@ public class LoginActivity extends AppCompatActivity {
         mImageView = (ImageView) findViewById(R.id.image);
 
         linearLayout = (LinearLayout) findViewById(R.id.email_login_form);
+        database = new Database(this);
+        boolean network = database.isNetworkAvailable();
 
-        userDatabase = openOrCreateDatabase(DATABASE_NAME, MODE_PRIVATE, null);
-        userDatabase.execSQL("CREATE TABLE IF NOT EXISTS local_user_table(name VARCHAR, email VARCHAR, password VARCHAR, id VARCHAR)");
+        animate(!true);
+        //showProgressCircle(!true);
+
+        mEmailEditText.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                if (actionId == R.id.login || actionId == EditorInfo.IME_NULL) {
+                    if (!register) {
+                        // attemptRegister();
+                    } else {
+                        // attemptLogin();
+                    }
+                    return true;
+                }
+                return false;
+            }
+        });
 
         mLoginButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (!register) {
-                    try {
-                        attemptRegisterUser();
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        Snackbar.make(v.getRootView(), "Unable to register your account, internal app error. " + e.getMessage(), Snackbar.LENGTH_LONG).show();
-                    }
+                    // attemptRegister();
+                    attemptRegister();
                 } else {
-
+                    // attemptLogin();
                 }
             }
         });
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        settings = getSharedPreferences(SETTINGS_NAME, MODE_PRIVATE);
-        boolean status = settings.getBoolean("isLoggedIn", false);
-        showProgressCircle(status);
-    }
+    private void attemptRegister() {
+        if (mUserRegisterTask != null) {
+            return;
+        }
 
-    private void attemptRegisterUser() throws Exception {           // to be called when the registration is done
-        mNameEditText.setError(null);
+        // reset errors
         mEmailEditText.setError(null);
+        mNameEditText.setError(null);
         mPasswordText.setError(null);
 
-        boolean cancel = false;
-
+        // save values
         String email = mEmailEditText.getText().toString();
-        String password = mPasswordText.getText().toString();
         String name = mNameEditText.getText().toString();
-        byte[] temp;
-        String id;
+        String password = mPasswordText.getText().toString();
+
+        boolean cancel = false;
+        View focusView = null;
+
+        // check for valid password.
+        if (!TextUtils.isEmpty(password) && !isPasswordValid(password)) {
+            mPasswordText.setError(getString(R.string.error_invalid_password));
+            focusView = mPasswordText;
+            cancel = true;
+        }
 
         if (TextUtils.isEmpty(email)) {
             mEmailEditText.setError(getString(R.string.error_field_required));
+            focusView = mEmailEditText;
             cancel = true;
         } else if (!isEmailValid(email)) {
             mEmailEditText.setError(getString(R.string.error_invalid_email));
+            focusView = mEmailEditText;
             cancel = true;
-        } else if (!isValidPassword(password) || TextUtils.isEmpty(password)) {
-            mPasswordText.setError(getString(R.string.error_invalid_password));
-            cancel = true;
-        } else if (TextUtils.isEmpty(name)) {
-            mNameEditText.setError(getString(R.string.error_field_required));
-            cancel = true;
-        } else {
-            cancel = false;
         }
-
         if (cancel) {
-            return;
+            focusView.requestFocus();
         } else {
-            // send user data over to the server a copy in local db.
-            temp = encrypt(email);
-            id = temp.toString();
-//            ContentValues contentValues = new ContentValues();
-//            contentValues.put("name", name);
-//            contentValues.put("email", email);
-//            contentValues.put("password", password);
-//            contentValues.put("id", id);
-//            userDatabase.insert("local_user_table", null, contentValues);
-
-            idDB = idDB.concat(id);
-            nameDB = nameDB.concat(name);
-            emailDB = emailDB.concat(email);
-            passwordDB = passwordDB.concat(password);
-
-            registerUserLinkDB = registerUserLinkDB.concat(idDB);
-            registerUserLinkDB = registerUserLinkDB.concat("&");
-            registerUserLinkDB = registerUserLinkDB.concat(nameDB);
-            registerUserLinkDB = registerUserLinkDB.concat("&");
-            registerUserLinkDB = registerUserLinkDB.concat(emailDB);
-            registerUserLinkDB = registerUserLinkDB.concat("&");
-            registerUserLinkDB = registerUserLinkDB.concat(passwordDB);
-
-//            URL url = new URL(registerUserLinkDB)-;
-//            HttpClient client = new DefaultHttpClient();
-//            HttpGet request = new HttpGet();
-//            request.setURI(new URI(registerUserLinkDB));
-//            HttpResponse response = client.execute(request);
-
-            settings = getSharedPreferences(SETTINGS_NAME, MODE_PRIVATE);
-            settings.edit().putBoolean("isLoggedIn", true).apply();
-            settings.edit().putString("ID", id).apply();
             showProgressCircle(true);
+            mUserRegisterTask = new UserRegisterTask(email, password, name);
+            mUserRegisterTask.execute((Void) null);
         }
     }
 
-    private boolean isEmailValid(String email) {        // check on server
+    private boolean isEmailValid(String email) {
         return email.contains("@");
     }
 
-    private boolean isValidPassword(String password) {
+    private boolean isPasswordValid(String password) {
         return password.length() > 4;
     }
 
@@ -187,93 +182,23 @@ public class LoginActivity extends AppCompatActivity {
             */
 
         if (!show) {        // for login and registrations
+            mLoginTextView.setVisibility(show ? View.VISIBLE : View.GONE);
             linearLayout.setVisibility(show ? View.GONE : View.VISIBLE);
-            final Animation fadeIn = AnimationUtils.loadAnimation(this, R.anim.fade_in);
-            final Animation imageViewAnim = AnimationUtils.loadAnimation(this, R.anim.image_view_anim);
-            mImageView.startAnimation(imageViewAnim);
-            imageViewAnim.setAnimationListener(new Animation.AnimationListener() {
-                @Override
-                public void onAnimationStart(Animation animation) {
+            mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
 
-                }
-
-                @Override
-                public void onAnimationEnd(Animation animation) {
-                    mImageView.animate().translationY(-16).setDuration(500).setStartDelay(4000).setListener(new AnimatorListenerAdapter() {
-                        @Override
-                        public void onAnimationEnd(Animator animation) {
-                            super.onAnimationEnd(animation);
-                            mEmailLayout.setVisibility(View.VISIBLE);
-                            mPasswordLayout.setVisibility(View.VISIBLE);
-                            mLoginButton.setVisibility(View.VISIBLE);
-                            mTextView.setVisibility(View.VISIBLE);
-                            mEmailLayout.setAnimation(fadeIn);
-                            mPasswordLayout.setAnimation(fadeIn);
-                            mLoginButton.setAnimation(fadeIn);
-                            mTextView.setAnimation(fadeIn);
-                        }
-                    });
-                }
-
-                @Override
-                public void onAnimationRepeat(Animation animation) {
-
-                }
-            });
         } else {        // for registered users, increase the slash time.
-            mEmailLayout.setVisibility(View.GONE);
-            mPasswordLayout.setVisibility(View.GONE);
-            mNameLayout.setVisibility(View.GONE);
-            mLoginButton.setVisibility(View.GONE);
-            mTextView.setVisibility(View.GONE);
-            linearLayout.setVisibility(show ? View.VISIBLE : View.GONE);
-            final Animation imageViewAnim = AnimationUtils.loadAnimation(this, R.anim.image_view_anim);
-            mImageView.startAnimation(imageViewAnim);
-            imageViewAnim.setAnimationListener(new Animation.AnimationListener() {
-                @Override
-                public void onAnimationStart(Animation animation) {
-
-                }
-
-                @Override
-                public void onAnimationEnd(Animation animation) {
-                    linearLayout.setVisibility(show ? View.GONE : View.VISIBLE);
-                    settings = getSharedPreferences(SETTINGS_NAME, MODE_PRIVATE);
-                    String id = settings.getString("ID", null);
-                    if (id == null)
-                        showProgressCircle(false);
-                    else {
-
-                        Intent mainIntent = new Intent(LoginActivity.this, MainActivity.class);
-                        mainIntent.putExtra("link", registerUserLinkDB);
-                        LoginActivity.this.startActivity(mainIntent);
-                        finish();
-                    }
-                }
-
-                @Override
-                public void onAnimationRepeat(Animation animation) {
-
-                }
-            });
+            mLoginTextView.setVisibility(show ? View.VISIBLE : View.GONE);
+            linearLayout.setVisibility(show ? View.GONE : View.VISIBLE);
+            mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
         }
     }
 
-    void authenicateUser(String id) {
-        new AsyncTask<String, String, String>() {
-            @Override
-            protected String doInBackground(String... params) {
-                return null;
-            }
-        }.execute();
-    }
+    @Override
+    protected void onResume() {
+        super.onResume();
+        settings = getSharedPreferences(SETTINGS_NAME, MODE_PRIVATE);
+        boolean status = settings.getBoolean("isLoggedIn", false);
 
-    public static byte[] encrypt(String x) throws Exception {
-        java.security.MessageDigest d = null;
-        d = java.security.MessageDigest.getInstance("SHA-1");
-        d.reset();
-        d.update(x.getBytes());
-        return d.digest();
     }
 
     public void onRegister(View view) {
@@ -290,6 +215,120 @@ public class LoginActivity extends AppCompatActivity {
             mTextView.setText(R.string.action_or_sign_in);
             mNameLayout.setVisibility(View.VISIBLE);
             register = false;
+        }
+    }
+
+    void animate(boolean show) {
+        linearLayout.setVisibility(show ? View.GONE : View.VISIBLE);
+        final Animation fadeIn = AnimationUtils.loadAnimation(this, R.anim.fade_in);
+        final Animation imageViewAnim = AnimationUtils.loadAnimation(this, R.anim.image_view_anim);
+        mImageView.startAnimation(imageViewAnim);
+        imageViewAnim.setAnimationListener(new Animation.AnimationListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {
+
+            }
+
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                mImageView.animate().translationY(-16).setDuration(500).setStartDelay(4000).setListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        super.onAnimationEnd(animation);
+                        mEmailLayout.setVisibility(View.VISIBLE);
+                        mPasswordLayout.setVisibility(View.VISIBLE);
+                        mLoginButton.setVisibility(View.VISIBLE);
+                        mTextView.setVisibility(View.VISIBLE);
+                        mEmailLayout.setAnimation(fadeIn);
+                        mPasswordLayout.setAnimation(fadeIn);
+                        mLoginButton.setAnimation(fadeIn);
+                        mTextView.setAnimation(fadeIn);
+                    }
+                });
+            }
+
+            @Override
+            public void onAnimationRepeat(Animation animation) {
+
+            }
+        });
+    }
+
+    class UserRegisterTask extends AsyncTask<Void, Void, Response> {
+        private final String mEmail;
+        private final String mPassword;
+        private final String mName;
+        private final Gson gson;
+        private final OkHttpClient client;
+
+
+        UserRegisterTask(String email, String password, String name) {
+            mEmail = email;
+            mPassword = password;
+            mName = name;
+            gson = new Gson();
+            client = new OkHttpClient();
+        }
+
+        Response run() throws Exception {
+            Request emailCheckRequest = new Request.Builder()
+                    .url(LINK_MAIN+SERVICE_EMAIL_CHECK+REGISTER_EMAIL+mEmail)
+                    .build();
+            Response emailCheckResponse = client.newCall(emailCheckRequest).execute();
+            if (!emailCheckResponse.isSuccessful()) throw new IOException("Unexpected code " + emailCheckResponse);
+            JSONObject jsonObject = new JSONObject(emailCheckRequest.toString());
+            if (jsonObject.getInt("success") == 1){
+                return null;
+            }
+            Request request = new Request.Builder()
+                    .url(LINK_MAIN + SERVICE_REGISTER + REGISTER_NAME + mName + "&" + REGISTER_EMAIL + mEmail + "&" + REGISTER_PASSWORD + mPassword)
+                    .build();
+            Response response = client.newCall(request).execute();
+            if (!response.isSuccessful()) throw new IOException("Unexpected code " + response);
+            Toast.makeText(LoginActivity.this, LINK_MAIN + SERVICE_REGISTER + REGISTER_NAME + mName + "&" + REGISTER_EMAIL + mEmail + "&" + REGISTER_PASSWORD + mPassword, Toast.LENGTH_LONG).show();
+            return response;
+        }
+
+        @Override
+        protected Response doInBackground(Void... params) {
+            Response response = null;
+            try {
+                response = run();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            if (response == null)
+                return null;
+            else
+                return response;
+        }
+
+        @Override
+        protected void onPostExecute(Response response) {
+            super.onPostExecute(response);
+            mUserRegisterTask = null; // set global var
+            showProgressCircle(false);
+            if (response == null) {
+                mUserRegisterTask = null; // set global var
+                showProgressCircle(false);
+                mEmailEditText.setError(getString(R.string.error_registered_email));
+                mEmailEditText.requestFocus();
+            } else {
+                responseClass = gson.fromJson(response.toString(), ResponseClass.class);
+                if (responseClass.getSuccess() == 1) {      // read message, return id.
+                    finish();
+                } else {
+                    mUserRegisterTask = null; // set global var
+                    showProgressCircle(false);
+                }
+            }
+        }
+
+        @Override
+        protected void onCancelled() {
+            super.onCancelled();
+            mUserRegisterTask = null; // set global var
+            showProgressCircle(false);
         }
     }
 }

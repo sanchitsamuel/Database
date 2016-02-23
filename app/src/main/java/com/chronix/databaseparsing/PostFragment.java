@@ -3,18 +3,18 @@ package com.chronix.databaseparsing;
 
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
-import android.support.v7.widget.Toolbar;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+
 /**
  * A simple {@link Fragment} subclass.
  */
-public class FilterFragment extends android.app.Fragment {
+public class PostFragment extends android.app.Fragment {
 
 
-    public FilterFragment() {
+    public PostFragment() {
         // Required empty public constructor
     }
 
@@ -23,6 +23,7 @@ public class FilterFragment extends android.app.Fragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.fragment_filter, container, false);
+        return inflater.inflate(R.layout.fragment_post, container, false);
     }
+
 }
