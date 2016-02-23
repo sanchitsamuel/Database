@@ -2,11 +2,14 @@ package com.chronix.databaseparsing;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.AsyncTask;
+import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.animation.Animation;
@@ -55,19 +58,23 @@ public class LoginActivity extends AppCompatActivity {
 
     private final String LINK_MAIN = "http://192.168.1.4/";
     private final String SERVICE_REGISTER = "register.php?";
-    private final String SERVICE_EMAIL_CHECK = "checkemail.php?";
-    private final String SERVICE_LOGIN = "login.php";
+    private final String SERVICE_EMAIL_CHECK = "email.php?";
+    private final String SERVICE_AUTHENTICATION = "id.php?";
+    private final String SERVICE_LOGIN = "login.php?";
 
     private final String link = "http://192.168.1.4/";
-    //private final String idDB = "id=";
+    private final String REGISTER_ID = "id=";
     private final String REGISTER_NAME = "name=";
     private final String REGISTER_EMAIL = "email=";
     private final String REGISTER_PASSWORD = "password=";
+    private boolean network;
 
     private Database database;
     ResponseClass responseClass;
 
     private UserRegisterTask mUserRegisterTask = null;
+    private Authentication mAuthentication = null;
+    private Login mLogin = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -88,7 +95,7 @@ public class LoginActivity extends AppCompatActivity {
 
         linearLayout = (LinearLayout) findViewById(R.id.email_login_form);
         database = new Database(this);
-        boolean network = database.isNetworkAvailable();
+        network = database.isNetworkAvailable();
 
         animate(!true);
         //showProgressCircle(!true);
@@ -116,9 +123,55 @@ public class LoginActivity extends AppCompatActivity {
                     attemptRegister();
                 } else {
                     // attemptLogin();
+                    attemptLogin();
                 }
             }
         });
+    }
+
+    private void attemptLogin() {
+        if (mLogin != null) {
+            return;
+        }
+
+        // reset errors
+        mEmailEditText.setError(null);
+        mPasswordText.setError(null);
+
+        // save values
+        String email = mEmailEditText.getText().toString();
+        String password = mPasswordText.getText().toString();
+
+        boolean cancel = false;
+        View focusView = null;
+
+        if (!TextUtils.isEmpty(password) && !isPasswordValid(password)) {
+            mPasswordText.setError(getString(R.string.error_invalid_password));
+            focusView = mPasswordText;
+            cancel = true;
+        }
+
+        if (TextUtils.isEmpty(email)) {
+            mEmailEditText.setError(getString(R.string.error_field_required));
+            focusView = mEmailEditText;
+            cancel = true;
+        } else if (!isEmailValid(email)) {
+            mEmailEditText.setError(getString(R.string.error_invalid_email));
+            focusView = mEmailEditText;
+            cancel = true;
+        }
+        if (cancel) {
+            focusView.requestFocus();
+        } else {
+            showProgressCircle(true);
+            if (network) {
+                mLogin = new Login(email, password);
+                mLogin.execute((Void) null);
+            } else {
+                Snackbar.make(linearLayout, "No internet connection.", Snackbar.LENGTH_LONG).show();
+                showProgressCircle(false);
+            }
+        }
     }
 
     private void attemptRegister() {
@@ -159,8 +212,13 @@ public class LoginActivity extends AppCompatActivity {
             focusView.requestFocus();
         } else {
             showProgressCircle(true);
-            mUserRegisterTask = new UserRegisterTask(email, password, name);
-            mUserRegisterTask.execute((Void) null);
+            if (network) {
+                mUserRegisterTask = new UserRegisterTask(email, password, name);
+                mUserRegisterTask.execute((Void) null);
+            } else {
+                Snackbar.make(linearLayout, "No internet connection.", Snackbar.LENGTH_LONG).show();
+                showProgressCircle(false);
+            }
         }
     }
 
@@ -197,8 +255,15 @@ public class LoginActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         settings = getSharedPreferences(SETTINGS_NAME, MODE_PRIVATE);
-        boolean status = settings.getBoolean("isLoggedIn", false);
-
+        //boolean status = settings.getBoolean("isLoggedIn", false);
+        String id = settings.getString("ID", null);
+        if (network) {
+            mAuthentication = new Authentication(id);
+            mAuthentication.execute((Void) null);
+        } else {
+            Snackbar.make(linearLayout, "No internet connection.", Snackbar.LENGTH_INDEFINITE).show();
+            showProgressCircle(false);
+        }
     }
 
     public void onRegister(View view) {
@@ -254,12 +319,116 @@ public class LoginActivity extends AppCompatActivity {
         });
     }
 
+    class Login extends AsyncTask<Void, Void, String> {
+        private final String mEmail;
+        private final String mPassword;
+        private OkHttpClient client;
+
+        Login (String email, String password) {
+            mEmail = email;
+            mPassword = password;
+            client = new OkHttpClient();
+        }
+
+        String run() throws Exception {
+            Request emailCheckRequest = new Request.Builder()
+                    .url(LINK_MAIN+SERVICE_LOGIN+REGISTER_EMAIL+mEmail+"&"+REGISTER_PASSWORD+mPassword)
+                    .build();
+            Response emailCheckResponse = client.newCall(emailCheckRequest).execute();
+            if (!emailCheckResponse.isSuccessful()) throw new IOException("Unexpected code " + emailCheckResponse);
+            JSONObject jsonObject = new JSONObject(emailCheckResponse.body().string());
+            if (jsonObject.getInt("success") == 1)
+                return jsonObject.getString("message");
+            return null;
+        }
+
+        @Override
+        protected String doInBackground(Void... params) {
+            String id = null;
+            try {
+                id = run();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return id;
+        }
+
+        @Override
+        protected void onPostExecute(String s) {
+            super.onPostExecute(s);
+
+            if(s != null) {
+                settings = getSharedPreferences(SETTINGS_NAME, MODE_PRIVATE);
+                settings.edit().putString("ID", s).apply();
+                Intent mainIntent = new Intent(LoginActivity.this, MainActivity.class);
+                LoginActivity.this.startActivity(mainIntent);
+
+                finish();
+            } else {
+                Snackbar.make(linearLayout, "Email or Password incorrect.", Snackbar.LENGTH_SHORT).show();
+                mEmailEditText.requestFocus();
+                showProgressCircle(false);
+            }
+        }
+    }
+
+    class Authentication extends AsyncTask<Void, Void, Boolean> {
+        private final String mID;
+        private OkHttpClient client;
+
+        Authentication(String savedID) {
+            mID = savedID;
+            client = new OkHttpClient();
+        }
+
+        boolean run() throws Exception {
+            Request emailCheckRequest = new Request.Builder()
+                    .url(LINK_MAIN+SERVICE_AUTHENTICATION+REGISTER_ID+mID)
+                    .build();
+            Response emailCheckResponse = client.newCall(emailCheckRequest).execute();
+            if (!emailCheckResponse.isSuccessful()) throw new IOException("Unexpected code " + emailCheckResponse);
+            JSONObject jsonObject = new JSONObject(emailCheckResponse.body().string());
+            if (jsonObject.getInt("success") == 1) {
+                return true;
+            }
+            return false;
+        }
+        @Override
+        protected Boolean doInBackground(Void... params) {
+            boolean status = false;
+            try {
+                status = run();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return status;
+        }
+
+        @Override
+        protected void onPostExecute(Boolean aBoolean) {
+            super.onPostExecute(aBoolean);
+            if (aBoolean) {
+                Intent mainIntent = new Intent(LoginActivity.this, MainActivity.class);
+                LoginActivity.this.startActivity(mainIntent);
+
+                finish();
+            } else {
+                if(mID != null) {
+                    Snackbar.make(linearLayout, "Account details not found.", Snackbar.LENGTH_LONG).show();
+                    settings = getSharedPreferences(SETTINGS_NAME, MODE_PRIVATE);
+                    settings.edit().remove("ID").apply();
+                }
+                showProgressCircle(false);
+            }
+        }
+    }
+
     class UserRegisterTask extends AsyncTask<Void, Void, Response> {
         private final String mEmail;
         private final String mPassword;
         private final String mName;
-        private final Gson gson;
-        private final OkHttpClient client;
+        private Gson gson;
+        private OkHttpClient client;
 
 
         UserRegisterTask(String email, String password, String name) {
@@ -276,16 +445,15 @@ public class LoginActivity extends AppCompatActivity {
                     .build();
             Response emailCheckResponse = client.newCall(emailCheckRequest).execute();
             if (!emailCheckResponse.isSuccessful()) throw new IOException("Unexpected code " + emailCheckResponse);
-            JSONObject jsonObject = new JSONObject(emailCheckRequest.toString());
-            if (jsonObject.getInt("success") == 1){
+            JSONObject jsonObject = new JSONObject(emailCheckResponse.body().string());
+            if (jsonObject.getInt("success") == 1) {
                 return null;
             }
             Request request = new Request.Builder()
-                    .url(LINK_MAIN + SERVICE_REGISTER + REGISTER_NAME + mName + "&" + REGISTER_EMAIL + mEmail + "&" + REGISTER_PASSWORD + mPassword)
+                    .url(LINK_MAIN+SERVICE_REGISTER+REGISTER_NAME+mName+"&"+REGISTER_EMAIL+mEmail+"&"+REGISTER_PASSWORD+mPassword)
                     .build();
             Response response = client.newCall(request).execute();
             if (!response.isSuccessful()) throw new IOException("Unexpected code " + response);
-            Toast.makeText(LoginActivity.this, LINK_MAIN + SERVICE_REGISTER + REGISTER_NAME + mName + "&" + REGISTER_EMAIL + mEmail + "&" + REGISTER_PASSWORD + mPassword, Toast.LENGTH_LONG).show();
             return response;
         }
 
@@ -314,8 +482,20 @@ public class LoginActivity extends AppCompatActivity {
                 mEmailEditText.setError(getString(R.string.error_registered_email));
                 mEmailEditText.requestFocus();
             } else {
-                responseClass = gson.fromJson(response.toString(), ResponseClass.class);
+                try {
+                    responseClass = gson.fromJson(response.body().string(), ResponseClass.class);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
                 if (responseClass.getSuccess() == 1) {      // read message, return id.
+                    Log.i("info", "success");
+                    settings = getSharedPreferences(SETTINGS_NAME, MODE_PRIVATE);
+                    settings.edit().putString("ID", responseClass.getMessage()).apply();
+                    settings.edit().putBoolean("isLoggedIn", true).apply();
+
+                    Intent mainIntent = new Intent(LoginActivity.this, MainActivity.class);
+                    LoginActivity.this.startActivity(mainIntent);
+
                     finish();
                 } else {
                     mUserRegisterTask = null; // set global var
