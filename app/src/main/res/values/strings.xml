@@ -10,6 +10,9 @@
     <string name="prompt_signin_in">Signin you in, please wait.</string>
     <string name="prompt_registering">Registering you, please wait.</string>
     <string name="prompt_search">Search text</string>
+    <string name="prompt_apply">Apply</string>
+    <string name="prompt_clear">Clear</string>
+    <string name="prompt_cancel">Cancel</string>
     <string name="action_sign_in">Sign in</string>
     <string name="action_register">Register</string>
     <string name="action_or_register">Or Register?</string>
@@ -40,6 +43,7 @@
     <string name="prompt_price">Price</string>
     <string name="prompt_year">Year</string>
     <string name="prompt_description">Description</string>
+    <string name="select_a_category">Select a category</string>
 
 
 </resources>

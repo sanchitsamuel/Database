@@ -54,7 +54,6 @@ public class LoginActivity extends AppCompatActivity {
     private static final String SETTINGS_NAME = "MySettingsFile";
     private static final String DATABASE_NAME = "userDB";
     private SharedPreferences settings;
-    //private SharedPreferences.Editor editor;
 
     private final String LINK_MAIN = "http://192.168.1.4/";
     private final String SERVICE_REGISTER = "register.php?";
@@ -62,7 +61,6 @@ public class LoginActivity extends AppCompatActivity {
     private final String SERVICE_AUTHENTICATION = "id.php?";
     private final String SERVICE_LOGIN = "login.php?";
 
-    private final String link = "http://192.168.1.4/";
     private final String REGISTER_ID = "id=";
     private final String REGISTER_NAME = "name=";
     private final String REGISTER_EMAIL = "email=";
@@ -231,13 +229,6 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     public void showProgressCircle(final boolean show) {
-
-            /*
-                add a authentication system.
-                the app sends the user id for system prefs to the server and receives an authentication.
-                if the server does not have the id in its database then the app resets current account info
-                and asks the user for new login
-            */
 
         if (!show) {        // for login and registrations
             mLoginTextView.setVisibility(show ? View.VISIBLE : View.GONE);
